@@ -74,6 +74,8 @@ class TSearch {
 		int VectorSize(void) {return vectorSize;};
 		void SetVectorSize(int NewSize);
     void SetRandomSeed(long seed) {rs.SetRandomSeed(seed);};
+	void SetDir(string newdir) {Dir = newdir;};
+	void SetCurrentRun(string run) {Current_Run = run;};
 		// Search Mode Accessors
 		TSelectionMode SelectionMode(void) {return SelectMode;};
 		void SetSelectionMode(TSelectionMode newmode) {SelectMode = newmode;};
@@ -118,6 +120,8 @@ class TSearch {
 			{SearchResultsDisplayFunction = DisplayFn;};
 		// Status Accessors
 		int Generation(void) {return Gen;};
+		string Directory(void) {return Dir;};
+		string CurrentRun(void) {return Current_Run;};
 		TVector<double> &Individual(int i) {return Population(i);};
 		double Fitness(int i) {return fitness(i);};
 		double Performance(int i) {return Perf(i);};
@@ -168,6 +172,8 @@ class TSearch {
     RandomState rs;
     TVector<RandomState> RandomStates;
 		int Gen;
+		string Dir;
+		string Current_Run;
 		int SearchInitialized;
 		TVector<TVector<double> > Population;
 		TVector<double> Perf;

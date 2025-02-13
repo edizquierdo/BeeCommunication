@@ -4,7 +4,8 @@
 #include "CTRNN.h"
 #include "random.h"
 
-// #define PRINTOFILE
+#define PRINTOFILE
+#define OUTPUT_DIR "/Users/edizquie/Documents/GitHub/BeeCommunication/E1/"
 
 // Task params
 const int LN = 2;                   // Number of landmarks in the environment
@@ -317,6 +318,10 @@ void EvolutionaryRunDisplay(int Generation, double BestPerf, double AvgPerf, dou
 
 void ResultsDisplay(TSearch &s)
 {
+
+    std::string current_run = s.CurrentRun();
+    std::string dir = s.Directory();
+
     TVector<double> bestVector;
     ofstream BestIndividualFile;
     TVector<double> phenotype;
@@ -324,7 +329,7 @@ void ResultsDisplay(TSearch &s)
 
     // Save the genotype of the best individual
     bestVector = s.BestIndividual();
-    BestIndividualFile.open("best.gen.dat");
+    BestIndividualFile.open( dir + "best_gen_" + current_run + ".dat");
     BestIndividualFile << bestVector << endl;
     BestIndividualFile.close();
 
@@ -332,7 +337,7 @@ void ResultsDisplay(TSearch &s)
     GenPhenMapping(bestVector, phenotype);
 
     // Show the Signaller
-    BestIndividualFile.open("best.ns.s.dat");
+    BestIndividualFile.open( dir + "best_ns_s_" + current_run + ".dat" );
     CountingAgent AgentSignaller(N);
 
     // Instantiate the nervous system
@@ -378,7 +383,7 @@ void ResultsDisplay(TSearch &s)
     BestIndividualFile.close();
 
     // Show the Signaller
-    BestIndividualFile.open("best.ns.r.dat");
+    BestIndividualFile.open(dir + "best_ns_r_" + current_run + ".dat");
     CountingAgent AgentReceiver(N);
 
     // Instantiate the nervous system
@@ -431,20 +436,21 @@ void ResultsDisplay(TSearch &s)
 int main (int argc, const char* argv[])
 {
     long randomseed = static_cast<long>(time(NULL));
-    if (argc == 2)
-        randomseed += atoi(argv[1]);
+    randomseed += atoi(argv[1]);
+    std::string current_run = argv[1];
+    std::string dir = "/Users/edizquie/Documents/GitHub/BeeCommunication/E1/";
 
     TSearch s(VectSize);
 
     #ifdef PRINTOFILE
 
     ofstream file;
-    file.open("evol.dat");
+    file.open  (dir + "evol_" + current_run + ".dat");
     cout.rdbuf(file.rdbuf());
 
     // save the seed to a file
     ofstream seedfile;
-    seedfile.open ("seed.dat");
+    seedfile.open (dir + "seed_" + current_run + ".dat");
     seedfile << randomseed << endl;
     seedfile.close();
     
@@ -452,6 +458,8 @@ int main (int argc, const char* argv[])
     
     // Configure the search
     s.SetRandomSeed(randomseed);
+    s.SetDir(dir);
+    s.SetCurrentRun(current_run);
     s.SetSearchResultsDisplayFunction(ResultsDisplay);
     s.SetPopulationStatisticsDisplayFunction(EvolutionaryRunDisplay);
     s.SetSelectionMode(RANK_BASED);
