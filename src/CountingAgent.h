@@ -26,6 +26,7 @@ class CountingAgent {
 		void SetOtherSensorWeight(int to, double value) {othersensorweights[to] = value;};
 		void SetFoodSensorState(double state) {foodSensor = state;};
 		void SetLandmarkSensorState(double state) {landmarkSensor = state;};
+		void ResetSensors(void) {landmarkSensor = 0; foodSensor = 0; otherSensor = 0;};
 
 		double FoodSensorWeight(int to) {return foodsensorweights[to];};
 		double LandmarkSensorWeight(int to) {return landmarksensorweights[to];};

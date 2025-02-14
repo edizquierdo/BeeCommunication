@@ -4,27 +4,26 @@
 #include "CTRNN.h"
 #include "random.h"
 
-#define PRINTOFILE
-#define OUTPUT_DIR "/Users/edizquie/Documents/GitHub/BeeCommunication/E1/"
+// #define PRINTOFILE
 
 // Task params
 const int LN = 2;                   // Number of landmarks in the environment
 const double StepSize = 0.1;
 const double RunDuration = 300.0;
 const double TransDuration = 150.0;
-const double MinLength = 10.0; //50.0;      
-const double mindist = 1.0; //5.0;         
+const double MinLength = 50.0; //10.0; //50.0;      
+const double mindist = 5.0; //1.0; //5.0;         
 
 // EA params
 const int POPSIZE = 96;
 const int GENS = 10000;
-const double MUTVAR = 0.05;
-const double CROSSPROB = 0.0;
+const double MUTVAR = 0.1; //0.05;
+const double CROSSPROB = 0.5; //0.0;
 const double EXPECTED = 1.1;
 const double ELITISM = 0.02;
 
 // Nervous system params
-const int N = 3;
+const int N = 4;
 const double WR = 10.0;     
 const double SR = 10.0;     
 const double BR = 10.0;     
@@ -114,8 +113,9 @@ void GenPhenMapping(TVector<double> &gen, TVector<double> &phen)
 
 // ------------------------------------
 // Fitness function
+// Landmarks vary position by small amount
 // ------------------------------------
-double FitnessFunctionA(TVector<double> &genotype, RandomState &rs)
+double FitnessFunction(TVector<double> &genotype, RandomState &rs)
 {
     // Map genotype to phenotype
     TVector<double> phenotype;
@@ -207,11 +207,12 @@ double FitnessFunctionA(TVector<double> &genotype, RandomState &rs)
     // ------------------------------------------------------------------------
 
     // Save state
-    TVector<double> savedstate;
-    savedstate.SetBounds(1,N);
+    TVector<double> savedstateR, savedstateS;
+    savedstateR.SetBounds(1,N);
+    savedstateS.SetBounds(1,N);
 
     // Keep track of performance
-    int totaltrials = 0;
+    float totaltrials = 0;
     double totaltime;
     double distR, distS;
     double totaldistR, totaldistS;
@@ -232,8 +233,7 @@ double FitnessFunctionA(TVector<double> &genotype, RandomState &rs)
             AgentSignaller.SenseLandmarks(ref,sep,LN,env);
             AgentSignaller.Step(StepSize);
         }
-        AgentSignaller.foodSensor = 0.0;
-        AgentSignaller.landmarkSensor = 0.0;
+        AgentSignaller.ResetSensors();
 
         // 2. RECRUITMENT PHASE
         AgentSignaller.ResetPosition(0);
@@ -246,67 +246,93 @@ double FitnessFunctionA(TVector<double> &genotype, RandomState &rs)
             AgentSignaller.Step(StepSize);
             AgentReceiver.Step(StepSize);
         }
-        AgentReceiver.otherSensor = 0.0;
+        AgentReceiver.ResetSensors();
+        AgentSignaller.ResetSensors();
 
-        // 3. TESTING PHASE
-        AgentReceiver.ResetPosition(0);
-        AgentSignaller.ResetPosition(0);
-        totaldistR = 0.0; totaldistS = 0.0;
-        totaltime = 0.0;
-        loc = ref + env*sep; 
-        //cout << "  Task " << env << ": " << loc << endl;
-        for (double time = 0; time < RunDuration; time += StepSize)
+        // Saved each of their neural states 
+        for (int i = 1; i <= N; i++)
         {
-            AgentReceiver.SenseLandmarks(ref,sep,LN,-1); // -1 food position so that it cannot sense it
-            AgentSignaller.SenseLandmarks(ref,sep,LN,-1); // -1 food position so that it cannot sense it
-            AgentReceiver.Step(StepSize);
-            AgentSignaller.Step(StepSize);
+            savedstateR[i] = AgentReceiver.NervousSystem.NeuronState(i);
+            savedstateS[i] = AgentSignaller.NervousSystem.NeuronState(i);
+        }
 
-            // Measure distance between them (after transients)
-            if (time > TransDuration)
+        // TEST USING DIFFERENT DISTANCES BETWEEN LANDMARKS
+        for (double ref_var = -1.0; ref_var <= 1.0; ref_var += 0.5)
+        {
+            for (double sep_var = -1.0; sep_var <= 1.0; sep_var += 0.5)
             {
-                distR = fabs(AgentReceiver.pos - loc);
-                if (distR < mindist){
-                    distR = 0.0;
-                }
-                totaldistR += distR;
 
-                distS = fabs(AgentSignaller.pos - loc);
-                if (distS < mindist){
-                    distS = 0.0;
+                // 3. TESTING PHASE
+                AgentReceiver.ResetPosition(0);
+                AgentSignaller.ResetPosition(0);
+                AgentReceiver.ResetSensors();
+                AgentSignaller.ResetSensors();
+                // Reset neural state
+                for (int i = 1; i <= N; i++)
+                {
+                    AgentReceiver.NervousSystem.SetNeuronState(i, savedstateR[i]);
+                    AgentSignaller.NervousSystem.SetNeuronState(i, savedstateS[i]);
                 }
-                totaldistS += distS;
 
-                totaltime += 1;
+                totaldistR = 0.0; totaldistS = 0.0;
+                totaltime = 0.0;
+                loc = (ref + ref_var) + (env * (sep + sep_var)); 
+                for (double time = 0; time < RunDuration; time += StepSize)
+                {
+                    AgentReceiver.SenseLandmarks(ref + ref_var, sep + sep_var, LN, -1); // -1 food position so that it cannot sense it
+                    AgentSignaller.SenseLandmarks(ref + ref_var, sep + sep_var, LN, -1); // -1 food position so that it cannot sense it
+                    AgentReceiver.Step(StepSize);
+                    AgentSignaller.Step(StepSize);
+
+                    // Measure distance between them (after transients)
+                    if (time > TransDuration)
+                    {
+                        distR = fabs(AgentReceiver.pos - loc);
+                        if (distR < mindist){
+                            distR = 0.0;
+                        }
+                        totaldistR += distR;
+
+                        distS = fabs(AgentSignaller.pos - loc);
+                        if (distS < mindist){
+                            distS = 0.0;
+                        }
+                        totaldistS += distS;
+
+                        totaltime += 1;
+                    }
+                }
+                fitR = 1 - ((totaldistR / totaltime)/MinLength);
+                if (fitR < 0){
+                    fitR = 0;
+                }
+                totalfitR += fitR;
+
+                fitS = 1 - ((totaldistS / totaltime)/MinLength);
+                if (fitS < 0.0){
+                    fitS = 0.0;
+                }
+                totalfitS += fitS;
+
+                totaltrials += 1;
             }
         }
-        fitR = 1 - ((totaldistR / totaltime)/MinLength);
-        if (fitR < 0){
-            fitR = 0;
-        }
-        totalfitR += fitR;
-        fitS = 1 - ((totaldistS / totaltime)/MinLength);
-        if (fitS < 0){
-            fitS = 0;
-        }
-        totalfitS += fitS;
-        totaltrials += 1;
     }
-    return (totalfitS + totalfitS) / (2 * totaltrials);
+    return (totalfitR + totalfitS) / (2 * totaltrials);
 }
 
 // ================================================
 // C. ADDITIONAL EVOLUTIONARY FUNCTIONS
 // ================================================
-int TerminationFunction(int Generation, double BestPerf, double AvgPerf, double PerfVar)
-{
-    if (BestPerf > 0.99) {
-        return 1;
-    }
-    else {
-        return 0;
-    }
-}
+// int TerminationFunction(int Generation, double BestPerf, double AvgPerf, double PerfVar)
+// {
+//     if (BestPerf > 0.99) {
+//         return 1;
+//     }
+//     else {
+//         return 0;
+//     }
+// }
 
 // ------------------------------------
 // Display functions
@@ -318,7 +344,6 @@ void EvolutionaryRunDisplay(int Generation, double BestPerf, double AvgPerf, dou
 
 void ResultsDisplay(TSearch &s)
 {
-
     std::string current_run = s.CurrentRun();
     std::string dir = s.Directory();
 
@@ -428,6 +453,9 @@ void ResultsDisplay(TSearch &s)
     BestIndividualFile << AgentReceiver.othersensorweights << "\n" << endl;
     BestIndividualFile.close();
 
+    /* Record behavior */
+
+
 }
 
 // ------------------------------------
@@ -476,9 +504,9 @@ int main (int argc, const char* argv[])
     /* Initialize and seed the search */
     s.InitializeSearch();
     
-    //Evolve
-    s.SetSearchTerminationFunction(TerminationFunction);
-    s.SetEvaluationFunction(FitnessFunctionA);
+    /* Evolve */
+    //s.SetSearchTerminationFunction(TerminationFunction);
+    s.SetEvaluationFunction(FitnessFunction);
     s.ExecuteSearch();
 
     #ifdef PRINTTOFILE
