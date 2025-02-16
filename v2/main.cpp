@@ -8,22 +8,23 @@
 
 // Task params
 const int LN = 2;                   // Number of landmarks in the environment
+const int VAR = 3;                  // Number of variations to the landmarks
 const double StepSize = 0.1;
 const double RunDuration = 300.0;
 const double TransDuration = 150.0;
-const double MinLength = 50.0; //10.0; //50.0;      
-const double mindist = 5.0; //1.0; //5.0;         
+const double MinLength = 50.0;      
+const double mindist = 5.0;         
 
 // EA params
 const int POPSIZE = 96;
 const int GENS = 10000;
-const double MUTVAR = 0.1; //0.05;
-const double CROSSPROB = 0.5; //0.0;
+const double MUTVAR = 0.05;
+const double CROSSPROB = 0.0;
 const double EXPECTED = 1.1;
 const double ELITISM = 0.02;
 
 // Nervous system params
-const int N = 4;
+const int N = 3;
 const double WR = 10.0;     
 const double SR = 10.0;     
 const double BR = 10.0;     
@@ -122,89 +123,8 @@ double FitnessFunction(TVector<double> &genotype, RandomState &rs)
     phenotype.SetBounds(1, VectSize);
     GenPhenMapping(genotype, phenotype);
 
-    int k = 1;  // Phenotype starts at 1 and keeps going for the parameters of both agents: signaller and receiver
-
-    // ------------------------------------------------------------------------
-    // Create SIGNALLER agent
-    CountingAgent AgentSignaller(N);
-
-    // Instantiate the nervous systems
-    AgentSignaller.NervousSystem.SetCircuitSize(N);
-    
-    // Time-constants
-    for (int i = 1; i <= N; i++) {
-        AgentSignaller.NervousSystem.SetNeuronTimeConstant(i,phenotype(k));
-        k++;
-    }
-    // Biases
-    for (int i = 1; i <= N; i++) {
-        AgentSignaller.NervousSystem.SetNeuronBias(i,phenotype(k));
-        k++;
-    }
-    // Weights
-    for (int i = 1; i <= N; i++) {
-        for (int j = 1; j <= N; j++) {
-            AgentSignaller.NervousSystem.SetConnectionWeight(i,j,phenotype(k));
-            k++;
-        }
-    }
-    // Food Sensor Weights
-    for (int i = 1; i <= N; i++) {
-        AgentSignaller.SetFoodSensorWeight(i,phenotype(k));
-        k++;
-    }
-    // Landmark Sensor Weights
-    for (int i = 1; i <= N; i++) {
-        AgentSignaller.SetLandmarkSensorWeight(i,phenotype(k));
-        k++;
-    }
-    // Other Sensor Weights
-    for (int i = 1; i <= N; i++) {
-        AgentSignaller.SetOtherSensorWeight(i,phenotype(k));
-        k++;
-    }
-    // ------------------------------------------------------------------------
-
-    // ------------------------------------------------------------------------
-    // Create RECEIVER agent
-    CountingAgent AgentReceiver(N);
-
-    // Instantiate the nervous systems
-    AgentReceiver.NervousSystem.SetCircuitSize(N);
-    
-    // Time-constants
-    for (int i = 1; i <= N; i++) {
-        AgentReceiver.NervousSystem.SetNeuronTimeConstant(i,phenotype(k));
-        k++;
-    }
-    // Biases
-    for (int i = 1; i <= N; i++) {
-        AgentReceiver.NervousSystem.SetNeuronBias(i,phenotype(k));
-        k++;
-    }
-    // Weights
-    for (int i = 1; i <= N; i++) {
-        for (int j = 1; j <= N; j++) {
-            AgentReceiver.NervousSystem.SetConnectionWeight(i,j,phenotype(k));
-            k++;
-        }
-    }
-    // Food Sensor Weights
-    for (int i = 1; i <= N; i++) {
-        AgentReceiver.SetFoodSensorWeight(i,phenotype(k));
-        k++;
-    }
-    // Landmark Sensor Weights
-    for (int i = 1; i <= N; i++) {
-        AgentReceiver.SetLandmarkSensorWeight(i,phenotype(k));
-        k++;
-    }
-    // Other Sensor Weights
-    for (int i = 1; i <= N; i++) {
-        AgentReceiver.SetOtherSensorWeight(i,phenotype(k));
-        k++;
-    }    
-    // ------------------------------------------------------------------------
+    CountingAgent AgentSignaller( N, phenotype, 1);
+    CountingAgent AgentReceiver( N, phenotype, (int)(N*N + 5*N + 1));
 
     // Save state
     TVector<double> savedstateR, savedstateS;
@@ -217,20 +137,44 @@ double FitnessFunction(TVector<double> &genotype, RandomState &rs)
     double distR, distS;
     double totaldistR, totaldistS;
     double totalfitR = 0.0, totalfitS = 0.0;
-    double loc;
+    double food_loc, food_loc_varied;
     double fitR, fitS;
-    double ref = 15;
-    double sep = 15;
     
+    // Landmarks and variations
+    TVector<double> landmarkPositions;
+    TVector<double> landmarkPositionsVaried;
+    landmarkPositions.SetBounds(1,LN);  // [30, 45, 60..]
+    landmarkPositionsVaried.SetBounds(1,LN); 
+    for (int i = 1; i <= LN; i += 1)
+    {
+        landmarkPositions[i] = 15 + i * 15;
+    }
+    TMatrix<double> landmarkPositionsPossible;
+    int variations = (int) pow(VAR,LN);
+    landmarkPositionsPossible.SetBounds(1,variations,1,LN);  // [30, 45, 60..]
+    double x, y=0;
+    double offset = 1.0;
+    for (int i = 0; i < variations; i += 1)
+    {
+        x = i % VAR;
+        if (x == 0){ y += 1; }
+        landmarkPositionsPossible[i+1][1] = landmarkPositions[1] + x*offset;
+        landmarkPositionsPossible[i+1][2] = landmarkPositions[2] + y*offset;
+    }
+
     // Use this to save the neural state during learning
     for (int env = 1; env <= LN; env += 1)
     {
+        // Establish food location
+        food_loc = landmarkPositions[env];
+
         // 1. FORAGING PHASE
         AgentSignaller.ResetPosition(0);
         AgentSignaller.ResetNeuralState();
         for (double time = 0; time < RunDuration; time += StepSize)
         {
-            AgentSignaller.SenseLandmarks(ref,sep,LN,env);
+            AgentSignaller.SenseFood(food_loc);
+            AgentSignaller.SenseLandmarks(LN,landmarkPositions);
             AgentSignaller.Step(StepSize);
         }
         AgentSignaller.ResetSensors();
@@ -257,65 +201,70 @@ double FitnessFunction(TVector<double> &genotype, RandomState &rs)
         }
 
         // TEST USING DIFFERENT DISTANCES BETWEEN LANDMARKS
-        for (double ref_var = -1.0; ref_var <= 1.0; ref_var += 0.5)
+        for (int v = 1; v <= variations; v++)
         {
-            for (double sep_var = -1.0; sep_var <= 1.0; sep_var += 0.5)
+            for (int i = 1; i <= LN; i += 1)
             {
-
-                // 3. TESTING PHASE
-                AgentReceiver.ResetPosition(0);
-                AgentSignaller.ResetPosition(0);
-                AgentReceiver.ResetSensors();
-                AgentSignaller.ResetSensors();
-                // Reset neural state
-                for (int i = 1; i <= N; i++)
-                {
-                    AgentReceiver.NervousSystem.SetNeuronState(i, savedstateR[i]);
-                    AgentSignaller.NervousSystem.SetNeuronState(i, savedstateS[i]);
-                }
-
-                totaldistR = 0.0; totaldistS = 0.0;
-                totaltime = 0.0;
-                loc = (ref + ref_var) + (env * (sep + sep_var)); 
-                for (double time = 0; time < RunDuration; time += StepSize)
-                {
-                    AgentReceiver.SenseLandmarks(ref + ref_var, sep + sep_var, LN, -1); // -1 food position so that it cannot sense it
-                    AgentSignaller.SenseLandmarks(ref + ref_var, sep + sep_var, LN, -1); // -1 food position so that it cannot sense it
-                    AgentReceiver.Step(StepSize);
-                    AgentSignaller.Step(StepSize);
-
-                    // Measure distance between them (after transients)
-                    if (time > TransDuration)
-                    {
-                        distR = fabs(AgentReceiver.pos - loc);
-                        if (distR < mindist){
-                            distR = 0.0;
-                        }
-                        totaldistR += distR;
-
-                        distS = fabs(AgentSignaller.pos - loc);
-                        if (distS < mindist){
-                            distS = 0.0;
-                        }
-                        totaldistS += distS;
-
-                        totaltime += 1;
-                    }
-                }
-                fitR = 1 - ((totaldistR / totaltime)/MinLength);
-                if (fitR < 0){
-                    fitR = 0;
-                }
-                totalfitR += fitR;
-
-                fitS = 1 - ((totaldistS / totaltime)/MinLength);
-                if (fitS < 0.0){
-                    fitS = 0.0;
-                }
-                totalfitS += fitS;
-
-                totaltrials += 1;
+                landmarkPositionsVaried[i] = landmarkPositionsPossible[v][i];
             }
+            // Establish food location
+            food_loc_varied = landmarkPositionsVaried[env];
+
+            // 3. TESTING PHASE
+            AgentReceiver.ResetPosition(0);
+            AgentSignaller.ResetPosition(0);
+            AgentReceiver.ResetSensors();
+            AgentSignaller.ResetSensors();
+            // Reset neural state
+            for (int i = 1; i <= N; i++)
+            {
+                AgentReceiver.NervousSystem.SetNeuronState(i, savedstateR[i]);
+                AgentSignaller.NervousSystem.SetNeuronState(i, savedstateS[i]);
+            }
+            
+            totaldistR = 0.0; totaldistS = 0.0;
+            totaltime = 0.0;
+            
+            for (double time = 0; time < RunDuration; time += StepSize)
+            {
+                AgentReceiver.SenseLandmarks(LN,landmarkPositionsVaried); 
+                AgentSignaller.SenseLandmarks(LN,landmarkPositionsVaried);
+                AgentReceiver.Step(StepSize);
+                AgentSignaller.Step(StepSize);
+
+                // Measure distance between them (after transients)
+                if (time > TransDuration)
+                {
+                    distR = fabs(AgentReceiver.pos - food_loc_varied);
+                    if (distR < mindist){
+                        distR = 0.0;
+                    }
+                    totaldistR += distR;
+
+                    distS = fabs(AgentSignaller.pos - food_loc_varied);
+                    
+                    if (distS < mindist){
+                        distS = 0.0;
+                    }
+                    totaldistS += distS;
+
+                    totaltime += 1;
+                }
+            }
+            
+            fitR = 1 - ((totaldistR / totaltime)/MinLength);
+            if (fitR < 0){
+                fitR = 0;
+            }
+            totalfitR += fitR;
+
+            fitS = 1 - ((totaldistS / totaltime)/MinLength);
+            if (fitS < 0.0){
+                fitS = 0.0;
+            }
+            totalfitS += fitS;
+
+            totaltrials += 1;
         }
     }
     return (totalfitR + totalfitS) / (2 * totaltrials);
@@ -363,43 +312,8 @@ void ResultsDisplay(TSearch &s)
 
     // Show the Signaller
     BestIndividualFile.open( dir + "best_ns_s_" + current_run + ".dat" );
-    CountingAgent AgentSignaller(N);
+    CountingAgent AgentSignaller( N, phenotype, 1);
 
-    // Instantiate the nervous system
-    AgentSignaller.NervousSystem.SetCircuitSize(N);
-    
-    // Time-constants
-    for (int i = 1; i <= N; i++) {
-        AgentSignaller.NervousSystem.SetNeuronTimeConstant(i,phenotype(k));
-        k++;
-    }
-    // Bias
-    for (int i = 1; i <= N; i++) {
-        AgentSignaller.NervousSystem.SetNeuronBias(i,phenotype(k));
-        k++;
-    }
-    // Weights
-    for (int i = 1; i <= N; i++) {
-        for (int j = 1; j <= N; j++) {
-            AgentSignaller.NervousSystem.SetConnectionWeight(i,j,phenotype(k));
-            k++;
-        }
-    }
-    // Food Sensor Weights
-    for (int i = 1; i <= N; i++) {
-        AgentSignaller.SetFoodSensorWeight(i,phenotype(k));
-        k++;
-    }
-    // Landmark Sensor Weights
-    for (int i = 1; i <= N; i++) {
-        AgentSignaller.SetLandmarkSensorWeight(i,phenotype(k));
-        k++;
-    }
-    // Other Sensor Weights
-    for (int i = 1; i <= N; i++) {
-        AgentSignaller.SetOtherSensorWeight(i,phenotype(k));
-        k++;
-    }    
     // Send to file
     BestIndividualFile << AgentSignaller.NervousSystem << endl;
     BestIndividualFile << AgentSignaller.foodsensorweights << "\n" << endl;
@@ -409,52 +323,14 @@ void ResultsDisplay(TSearch &s)
 
     // Show the Signaller
     BestIndividualFile.open(dir + "best_ns_r_" + current_run + ".dat");
-    CountingAgent AgentReceiver(N);
+    CountingAgent AgentReceiver( N, phenotype, (int)(N*N + 5*N + 1));
 
-    // Instantiate the nervous system
-    AgentReceiver.NervousSystem.SetCircuitSize(N);
-    
-    // Time-constants
-    for (int i = 1; i <= N; i++) {
-        AgentReceiver.NervousSystem.SetNeuronTimeConstant(i,phenotype(k));
-        k++;
-    }
-    // Bias
-    for (int i = 1; i <= N; i++) {
-        AgentReceiver.NervousSystem.SetNeuronBias(i,phenotype(k));
-        k++;
-    }
-    // Weights
-    for (int i = 1; i <= N; i++) {
-        for (int j = 1; j <= N; j++) {
-            AgentReceiver.NervousSystem.SetConnectionWeight(i,j,phenotype(k));
-            k++;
-        }
-    }
-    // Food Sensor Weights
-    for (int i = 1; i <= N; i++) {
-        AgentReceiver.SetFoodSensorWeight(i,phenotype(k));
-        k++;
-    }
-    // Landmark Sensor Weights
-    for (int i = 1; i <= N; i++) {
-        AgentReceiver.SetLandmarkSensorWeight(i,phenotype(k));
-        k++;
-    }
-    // Other Sensor Weights
-    for (int i = 1; i <= N; i++) {
-        AgentReceiver.SetOtherSensorWeight(i,phenotype(k));
-        k++;
-    }    
     // Send to file
     BestIndividualFile << AgentReceiver.NervousSystem << endl;
     BestIndividualFile << AgentReceiver.foodsensorweights << "\n" << endl;
     BestIndividualFile << AgentReceiver.landmarksensorweights << "\n" << endl;
     BestIndividualFile << AgentReceiver.othersensorweights << "\n" << endl;
     BestIndividualFile.close();
-
-    /* Record behavior */
-
 
 }
 
