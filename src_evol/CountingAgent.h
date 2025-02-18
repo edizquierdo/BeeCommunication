@@ -11,9 +11,9 @@
 class CountingAgent {
 	public:
 		// The constructor
-		CountingAgent(int networksize)
+		CountingAgent(int networksize, TVector<double> parameters)
 		{
-			Set(networksize);
+			Set(networksize, parameters);
 		};
 		// The destructor
 		~CountingAgent() {};
@@ -33,11 +33,12 @@ class CountingAgent {
 		double OtherSensorWeight(int to) {return othersensorweights[to];};
 
 		// Control
-        void Set(int networksize);
+        void Set(int networksize, TVector<double> parameters);
 		void ResetPosition(double initpos);
 		void ResetNeuralState();
-		void SenseLandmarks(double ref, double sep, int numlandmarks, int foodpos);
-		void SenseOther(double pos);
+		void SenseFood(double pos_food);
+		void SenseLandmarks(double ln, TVector<double> pos_landmarks);
+		void SenseOther(double pos_other);
 		void Step(double StepSize);
 
 		int size;

@@ -10,7 +10,7 @@
 // *******
 
 // Init the agent
-void CountingAgent::Set(int networksize, TVector<double> parameters, int k)
+void CountingAgent::Set(int networksize, TVector<double> parameters)
 {
 	size = networksize;
 	gain = 1.0; 
@@ -27,7 +27,7 @@ void CountingAgent::Set(int networksize, TVector<double> parameters, int k)
 
 	// Instantiate the nervous systems
 	NervousSystem.SetCircuitSize(size);
-
+	int k = 1;
 	// Time-constants
 	for (int i = 1; i <= size; i++) {
 		NervousSystem.SetNeuronTimeConstant(i,parameters(k));
