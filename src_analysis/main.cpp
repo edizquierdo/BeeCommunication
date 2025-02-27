@@ -108,8 +108,8 @@ double RecordBehavior(TVector<double> genotype, std::string current_run) //, Ran
     double totalfitR = 0.0, totalfitS = 0.0;
     double food_loc, food_loc_mod;
     double fitR, fitS;
-    double ref = 15;
-    double sep = 15;
+    double ref = 10;
+    double sep = 10;
 
     // Landmarks and variations
     TVector<double> landmarkPositions;
@@ -137,9 +137,9 @@ double RecordBehavior(TVector<double> genotype, std::string current_run) //, Ran
         ReceiverBehaviorFile3.open( "behavior_Receiver_" + current_run + "_Env" + s_env + "_Phase3.dat");
 
         // TEST USING DIFFERENT DISTANCES BETWEEN LANDMARKS
-        for (double ref_var = -1.0; ref_var <= 1.0; ref_var += 1.0)
+        for (double ref_var = -5.0; ref_var <= 5.0; ref_var += 2.0)
         {
-            for (double sep_var = -1.0; sep_var <= 1.0; sep_var += 1.0)
+            for (double sep_var = -5.0; sep_var <= 5.0; sep_var += 2.0)
             {
                 // Establish food location
                 food_loc = landmarkPositions[env];

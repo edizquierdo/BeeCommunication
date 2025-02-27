@@ -119,7 +119,7 @@ void CountingAgent::Step(double StepSize)
 {
 	// Set sensors to external input
 	for (int i = 1; i <= size; i++){
-		NervousSystem.SetNeuronExternalInput(i, foodSensor*foodsensorweights[i] + landmarkSensor*landmarksensorweights[i]);
+		NervousSystem.SetNeuronExternalInput(i, foodSensor*foodsensorweights[i] + landmarkSensor*landmarksensorweights[i] + otherSensor*othersensorweights[i]);
 	}
 
 	// Update the nervous system

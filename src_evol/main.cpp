@@ -7,7 +7,7 @@
 #define PRINTOFILE
 
 // Task params
-const int LN = 2;                   // Number of landmarks in the environment
+const int LN = 3;                   // Number of landmarks in the environment
 const double StepSize = 0.1;
 const double RunDuration = 300.0;
 const double TransDuration = 150.0;
@@ -16,14 +16,14 @@ const double mindist = 5.0;
 
 // EA params
 const int POPSIZE = 96; //96;
-const int GENS = 1000; //10000;
+const int GENS = 10000; //10000;
 const double MUTVAR = 0.01; //0.05;
 const double CROSSPROB = 0.5;
 const double EXPECTED = 1.1;
 const double ELITISM = 0.02;
 
 // Nervous system params
-const int N = 3;
+const int N = 4;
 const double WR = 10.0;     
 const double SR = 10.0;     
 const double BR = 10.0;     
@@ -105,8 +105,8 @@ double FitnessFunction1(TVector<double> &genotype, RandomState &rs)
     double totalfitS = 0.0;
     double food_loc, food_loc_mod;
     double fitS;
-    double ref = 15;
-    double sep = 15;
+    double ref = 10;
+    double sep = 10;
 
     // Landmarks and variations
     TVector<double> landmarkPositions;
@@ -235,8 +235,8 @@ double FitnessFunction2(TVector<double> &genotype, RandomState &rs)
     double totalfitR = 0.0, totalfitS = 0.0;
     double food_loc, food_loc_mod;
     double fitR, fitS;
-    double ref = 15;
-    double sep = 15;
+    double ref = 10;
+    double sep = 10;
 
     // Landmarks and variations
     TVector<double> landmarkPositions;
@@ -388,8 +388,8 @@ double FitnessFunction3(TVector<double> &genotype, RandomState &rs)
     double totalfitR = 0.0, totalfitS = 0.0;
     double food_loc, food_loc_mod;
     double fitR, fitS;
-    double ref = 15;
-    double sep = 15;
+    double ref = 10;
+    double sep = 10;
 
     // Landmarks and variations
     TVector<double> landmarkPositions;
@@ -516,6 +516,159 @@ double FitnessFunction3(TVector<double> &genotype, RandomState &rs)
 // Fitness function
 // Landmarks vary position by small amount
 // ------------------------------------
+double FitnessFunction4(TVector<double> &genotype, RandomState &rs)
+{
+    // Map genotype to phenotype
+    TVector<double> phenotypeS, phenotypeR;
+    phenotypeS.SetBounds(1, (int)(VectSize/2));
+    phenotypeR.SetBounds(1, (int)(VectSize/2));
+    GenPhenMapping(genotype, phenotypeS, 1);
+    GenPhenMapping(genotype, phenotypeR, (int)(N*N + 5*N + 1));
+
+    CountingAgent AgentSignaler( N, phenotypeS);
+    CountingAgent AgentReceiver( N, phenotypeR);
+
+    // Save state
+    TVector<double> savedstateR, savedstateS;
+    savedstateR.SetBounds(1,N);
+    savedstateS.SetBounds(1,N);
+
+    // Keep track of performance
+    double totaltrials = 0;
+    double totaltime;
+    double distR, distS;
+    double totaldistR, totaldistS;
+    double totalfitR = 0.0, totalfitS = 0.0;
+    double food_loc, food_loc_mod;
+    double fitR, fitS;
+    double ref = 10;
+    double sep = 10;
+
+    // Landmarks and variations
+    TVector<double> landmarkPositions;
+    landmarkPositions.SetBounds(1,LN);  // [30, 45, 60..]
+    for (int i = 1; i <= LN; i += 1)
+    {
+        landmarkPositions[i] = ref + (i * sep);
+    }
+
+    TVector<double> landmarkPositionTest;
+    landmarkPositionTest.SetBounds(1,LN);  
+    
+    // Use this to save the neural state during learning
+    for (int env = 1; env <= LN; env += 1)
+    {
+        // Establish food location
+        food_loc = landmarkPositions[env];
+
+        // 1. FORAGING PHASE
+        AgentSignaler.ResetPosition(0);
+        AgentSignaler.ResetNeuralState();
+        for (double time = 0; time < RunDuration; time += StepSize)
+        {
+            AgentSignaler.SenseFood(food_loc);
+            AgentSignaler.SenseLandmarks(LN,landmarkPositions);
+            AgentSignaler.Step(StepSize);
+        }
+        AgentSignaler.ResetSensors();
+
+        // 2. RECRUITMENT PHASE
+        AgentSignaler.ResetPosition(0);
+        AgentReceiver.ResetPosition(0);
+        AgentReceiver.ResetNeuralState();
+        for (double time = 0; time < RunDuration; time += StepSize)
+        {
+            AgentSignaler.SenseOther(AgentReceiver.pos);
+            AgentReceiver.SenseOther(AgentSignaler.pos);
+            AgentSignaler.Step(StepSize);
+            AgentReceiver.Step(StepSize);
+        }
+        AgentReceiver.ResetSensors();
+        AgentSignaler.ResetSensors();
+
+        // Saved each of their neural states 
+        for (int i = 1; i <= N; i++)
+        {
+            savedstateR[i] = AgentReceiver.NervousSystem.NeuronState(i);
+            savedstateS[i] = AgentSignaler.NervousSystem.NeuronState(i);
+        }
+
+        // TEST USING DIFFERENT DISTANCES BETWEEN LANDMARKS
+        for (double ref_var = -2.0; ref_var <= 2.0; ref_var += 1.0)
+        {
+            for (double sep_var = -2.0; sep_var <= 2.0; sep_var += 1.0)
+            {
+                for (int i = 1; i <= LN; i += 1)
+                {
+                    landmarkPositionTest[i] = (ref + ref_var) + (i * (sep + sep_var));
+                }
+                food_loc_mod = landmarkPositionTest[env];
+
+                // 3. TESTING PHASE
+                AgentReceiver.ResetPosition(0);
+                AgentSignaler.ResetPosition(0);
+                AgentReceiver.ResetSensors();
+                AgentSignaler.ResetSensors();
+                // Reset neural state
+                for (int i = 1; i <= N; i++)
+                {
+                    AgentReceiver.NervousSystem.SetNeuronState(i, savedstateR[i]);
+                    AgentSignaler.NervousSystem.SetNeuronState(i, savedstateS[i]);
+                }
+                
+                totaldistR = 0.0; totaldistS = 0.0;
+                totaltime = 0.0;
+        
+                for (double time = 0; time < RunDuration; time += StepSize)
+                {
+                    AgentReceiver.SenseLandmarks(LN,landmarkPositionTest); 
+                    AgentSignaler.SenseLandmarks(LN,landmarkPositionTest);
+                    AgentReceiver.Step(StepSize);
+                    AgentSignaler.Step(StepSize);
+
+                    // Measure distance between them (after transients)
+                    if (time > TransDuration)
+                    {
+                        distR = fabs(AgentReceiver.pos - food_loc_mod);
+                        if (distR < mindist){
+                            distR = 0.0;
+                        }
+                        totaldistR += distR;
+
+                        distS = fabs(AgentSignaler.pos - food_loc_mod);
+                        
+                        if (distS < mindist){
+                            distS = 0.0;
+                        }
+                        totaldistS += distS;
+
+                        totaltime += 1;
+                    }
+                }
+                
+                fitR = 1 - ((totaldistR / totaltime)/MinLength);
+                if (fitR < 0){
+                    fitR = 0;
+                }
+                totalfitR += fitR;
+
+                fitS = 1 - ((totaldistS / totaltime)/MinLength);
+                if (fitS < 0.0){
+                    fitS = 0.0;
+                }
+                totalfitS += fitS;
+
+                totaltrials += 1;
+            }
+        }
+    }
+    return (totalfitR + totalfitS) / (2 * totaltrials);
+}
+
+// ------------------------------------
+// Fitness function
+// Landmarks vary position by small amount
+// ------------------------------------
 double RecordBehavior(TSearch &s) //, RandomState &rs)
 {
     std::string current_run = s.CurrentRun();
@@ -547,8 +700,8 @@ double RecordBehavior(TSearch &s) //, RandomState &rs)
     double totalfitR = 0.0, totalfitS = 0.0;
     double food_loc, food_loc_mod;
     double fitR, fitS;
-    double ref = 15;
-    double sep = 15;
+    double ref = 10;
+    double sep = 10;
 
     // Landmarks and variations
     TVector<double> landmarkPositions;
@@ -576,9 +729,9 @@ double RecordBehavior(TSearch &s) //, RandomState &rs)
         ReceiverBehaviorFile3.open( dir + "behavior_Receiver_" + current_run + "_Env" + s_env + "_Phase3.dat");
 
         // TEST USING DIFFERENT DISTANCES BETWEEN LANDMARKS
-        for (double ref_var = -1.0; ref_var <= 1.0; ref_var += 1.0)
+        for (double ref_var = -2.0; ref_var <= 2.0; ref_var += 1.0)
         {
-            for (double sep_var = -1.0; sep_var <= 1.0; sep_var += 1.0)
+            for (double sep_var = -2.0; sep_var <= 2.0; sep_var += 1.0)
             {
                 // Establish food location
                 food_loc = landmarkPositions[env];
@@ -773,7 +926,8 @@ int main (int argc, const char* argv[])
     long randomseed = static_cast<long>(time(NULL));
     randomseed += atoi(argv[1]);
     std::string current_run = argv[1];
-    std::string dir = "/Users/edizquie/Documents/GitHub/BeeCommunication/E1/";
+    std::string dir = "/Users/eduardoizquierdo/Dropbox/Research/Communication/E3N4/";
+//"/Users/edizquie/Documents/GitHub/BeeCommunication/E1/";
 
     TSearch s(VectSize);
 
@@ -820,11 +974,17 @@ int main (int argc, const char* argv[])
     s.SetEvaluationFunction(FitnessFunction2);
     s.ExecuteSearch();
 
-    s.SetSearchTerminationFunction(NULL);
+    s.SetSearchTerminationFunction(TerminationFunction);
     s.SetEvaluationFunction(FitnessFunction3);
     s.ExecuteSearch();
 
-    RecordBehavior(s);
+    s.SetSearchTerminationFunction(NULL);
+    s.SetEvaluationFunction(FitnessFunction4);
+    s.ExecuteSearch();
+
+    if (s.BestPerformance() > 0.99) {
+        RecordBehavior(s);
+    }
 
     #ifdef PRINTTOFILE
         evolfile.close();
